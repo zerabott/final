@@ -1,7 +1,7 @@
 import sqlite3
 import datetime
 from config import DB_PATH
-from db_connection import get_db_connection, execute_query, adapt_query
+from db_connection import get_db_connection
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,93 +15,179 @@ def get_db():
 def init_db():
     """Initialize database with enhanced schema"""
     db_conn = get_db_connection()
+    use_pg = getattr(db_conn, "use_postgresql", False)
+
     with db_conn.get_connection() as conn:
         cursor = conn.cursor()
-        
-        # Users table with join date tracking
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            join_date TEXT DEFAULT CURRENT_TIMESTAMP,
-            questions_asked INTEGER DEFAULT 0,
-            comments_posted INTEGER DEFAULT 0,
-            blocked INTEGER DEFAULT 0
-        )''')
-        
+
+        # Users table
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                join_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                questions_asked INT DEFAULT 0,
+                comments_posted INT DEFAULT 0,
+                blocked INT DEFAULT 0
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                join_date TEXT DEFAULT CURRENT_TIMESTAMP,
+                questions_asked INTEGER DEFAULT 0,
+                comments_posted INTEGER DEFAULT 0,
+                blocked INTEGER DEFAULT 0
+            )''')
+
         # Posts table
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS posts (
-            post_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            content TEXT NOT NULL,
-            category TEXT NOT NULL,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            user_id INTEGER NOT NULL,
-            approved INTEGER DEFAULT NULL,
-            channel_message_id INTEGER,
-            flagged INTEGER DEFAULT 0,
-            likes INTEGER DEFAULT 0,
-            post_number INTEGER DEFAULT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-        )''')
-        
-        # Comments table with enhanced structure
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS comments (
-            comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            post_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            parent_comment_id INTEGER,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            likes INTEGER DEFAULT 0,
-            dislikes INTEGER DEFAULT 0,
-            flagged INTEGER DEFAULT 0,
-            FOREIGN KEY(post_id) REFERENCES posts(post_id),
-            FOREIGN KEY(user_id) REFERENCES users(user_id),
-            FOREIGN KEY(parent_comment_id) REFERENCES comments(comment_id)
-        )''')
-        
-        # Likes/Reactions table
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reactions (
-            reaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            target_type TEXT NOT NULL, -- "post" or "comment"
-            target_id INTEGER NOT NULL,
-            reaction_type TEXT NOT NULL, -- "like" or "dislike"
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, target_type, target_id),
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-        )''')
-        
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS posts (
+                post_id SERIAL PRIMARY KEY,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id BIGINT NOT NULL,
+                approved INT DEFAULT NULL,
+                channel_message_id INT,
+                flagged INT DEFAULT 0,
+                likes INT DEFAULT 0,
+                post_number INT DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS posts (
+                post_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                user_id INTEGER NOT NULL,
+                approved INTEGER DEFAULT NULL,
+                channel_message_id INTEGER,
+                flagged INTEGER DEFAULT 0,
+                likes INTEGER DEFAULT 0,
+                post_number INTEGER DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+
+        # Comments table
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS comments (
+                comment_id SERIAL PRIMARY KEY,
+                post_id INT NOT NULL,
+                user_id BIGINT NOT NULL,
+                content TEXT NOT NULL,
+                parent_comment_id INT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                likes INT DEFAULT 0,
+                dislikes INT DEFAULT 0,
+                flagged INT DEFAULT 0,
+                FOREIGN KEY(post_id) REFERENCES posts(post_id),
+                FOREIGN KEY(user_id) REFERENCES users(user_id),
+                FOREIGN KEY(parent_comment_id) REFERENCES comments(comment_id)
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS comments (
+                comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                post_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                parent_comment_id INTEGER,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                likes INTEGER DEFAULT 0,
+                dislikes INTEGER DEFAULT 0,
+                flagged INTEGER DEFAULT 0,
+                FOREIGN KEY(post_id) REFERENCES posts(post_id),
+                FOREIGN KEY(user_id) REFERENCES users(user_id),
+                FOREIGN KEY(parent_comment_id) REFERENCES comments(comment_id)
+            )''')
+
+        # Reactions table
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reactions (
+                reaction_id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id INT NOT NULL,
+                reaction_type TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, target_type, target_id),
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reactions (
+                reaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                reaction_type TEXT NOT NULL,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, target_type, target_id),
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+
         # Reports table
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reports (
-            report_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            target_type TEXT NOT NULL,
-            target_id INTEGER NOT NULL,
-            reason TEXT,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-        )''')
-        
-        # Admin messages table for admin-user communication
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS admin_messages (
-            message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            admin_id INTEGER,
-            user_message TEXT,
-            admin_reply TEXT,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            replied INTEGER DEFAULT 0,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-        )''')
-        
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reports (
+                report_id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id INT NOT NULL,
+                reason TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reports (
+                report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                reason TEXT,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+
+        # Admin messages table
+        if use_pg:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS admin_messages (
+                message_id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                admin_id BIGINT,
+                user_message TEXT,
+                admin_reply TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                replied INT DEFAULT 0,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+        else:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS admin_messages (
+                message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                admin_id INTEGER,
+                user_message TEXT,
+                admin_reply TEXT,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                replied INTEGER DEFAULT 0,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            )''')
+
         # Ranking system tables
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_rankings (
