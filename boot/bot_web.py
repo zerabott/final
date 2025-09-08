@@ -39,9 +39,9 @@ def home():
     return jsonify({
         "status": "healthy",
         "service": "Telegram Confession Bot",
-        "timestamp": datetime.now(datetime.UTC).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "bot_running": bot_status["running"],
-        "uptime": (datetime.now(datetime.UTC) - bot_status["start_time"]).total_seconds() if bot_status["start_time"] else 0
+        "uptime": (datetime.now(timezone.utc) - bot_status["start_time"]).total_seconds() if bot_status["start_time"] else 0
     })
 
 @app.route("/health", methods=["GET"])
@@ -78,7 +78,7 @@ def run_bot():
     """Start bot.py as a non-blocking subprocess"""
     try:
         logger.info("🚀 Starting Telegram bot subprocess...")
-        bot_status["start_time"] = datetime.now(datetime.UTC)
+        bot_status["start_time"] = datetime.now(timezone.utc)
         bot_status["running"] = True
 
         # First, setup database
@@ -102,3 +102,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"🌐 Starting web server on 0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
