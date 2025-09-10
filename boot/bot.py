@@ -2460,6 +2460,30 @@ async def add_comment_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     
     post_id = int(query.data.split("_")[2])
+    
+    # Validate that the post exists and is approved before allowing comment entry
+    from comments import get_post_with_channel_info
+    post_info = get_post_with_channel_info(post_id)
+    
+    if not post_info:
+        await query.edit_message_text(
+            f"❗ *Post Not Found*\n\n"
+            f"Post #{post_id} could not be found\\. It may have been deleted\\.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="menu")]]),
+            parse_mode="MarkdownV2"
+        )
+        return
+    
+    if post_info[4] != 1:  # approved column
+        await query.edit_message_text(
+            f"❗ *Post Not Available*\n\n"
+            f"Post #{post_id} is not approved for comments\\. "
+            f"Only approved posts can receive comments\\.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="menu")]]),
+            parse_mode="MarkdownV2"
+        )
+        return
+    
     context.user_data['comment_post_id'] = post_id
     context.user_data['state'] = 'writing_comment'
     context.user_data.pop('reply_to_comment_id', None)  # Clear any reply state
