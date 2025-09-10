@@ -94,13 +94,17 @@ class EnhancedRankingUI:
             next_rank_text = "🎉 Maximum rank achieved!"
         
         # Get streak visualization
-        from db_connection import get_db_connection
-        db_conn = get_db_connection()
-        with db_conn.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT consecutive_days FROM user_rankings WHERE user_id = ?", (user_id,))
-            result = cursor.fetchone()
-            streak_days = result[0] if result else 0
+        import sqlite3
+        from config import DB_PATH
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT consecutive_days FROM user_rankings WHERE user_id = ?", (user_id,))
+                result = cursor.fetchone()
+                streak_days = result[0] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting streak days for user {user_id}: {e}")
+            streak_days = 0
         
         streak_viz = EnhancedRankingUI.create_streak_visualization(streak_days)
         
