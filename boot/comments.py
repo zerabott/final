@@ -10,6 +10,35 @@ def save_comment(post_id, content, user_id, parent_comment_id=None):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
+            
+            # First, validate that the post exists and is approved
+            cursor.execute(
+                "SELECT post_id, approved FROM posts WHERE post_id = ?",
+                (post_id,)
+            )
+            post_data = cursor.fetchone()
+            
+            if not post_data:
+                return None, f"Post {post_id} not found"
+            
+            if post_data[1] != 1:  # not approved
+                return None, f"Post {post_id} not approved"
+            
+            # If parent_comment_id is provided, validate that the parent comment exists and belongs to this post
+            if parent_comment_id:
+                cursor.execute(
+                    "SELECT post_id FROM comments WHERE comment_id = ?",
+                    (parent_comment_id,)
+                )
+                parent_data = cursor.fetchone()
+                
+                if not parent_data:
+                    return None, f"Parent comment {parent_comment_id} not found"
+                
+                if parent_data[0] != post_id:
+                    return None, f"Parent comment {parent_comment_id} does not belong to post {post_id}"
+            
+            # Now save the comment
             cursor.execute(
                 "INSERT INTO comments (post_id, content, user_id, parent_comment_id) VALUES (?, ?, ?, ?)",
                 (post_id, content, user_id, parent_comment_id)
